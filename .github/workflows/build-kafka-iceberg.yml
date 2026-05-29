@@ -42,10 +42,13 @@ jobs:
 
       - name: Build Kafka Connect runtime distributions
         working-directory: iceberg
+        env:
+          VERSION: ${{ github.event.inputs.version }}
         run: |
           ./gradlew \
             :iceberg-kafka-connect:iceberg-kafka-connect-runtime:distZip \
             :iceberg-kafka-connect:iceberg-kafka-connect-runtime:hiveDistZip \
+            -Pversion="${VERSION}" \
             -x test \
             -x integrationTest \
             --no-daemon \
@@ -70,7 +73,7 @@ jobs:
           | File | Description |
           |------|-------------|
           | \`iceberg-kafka-connect-runtime-${VERSION}.zip\` | Standard distribution (AWS S3, GCS, Azure) |
-          | \`iceberg-kafka-connect-runtime-${VERSION}-hive.zip\` | Hive Metastore distribution |
+          | \`iceberg-kafka-connect-runtime-hive-${VERSION}.zip\` | Hive Metastore distribution |
 
           ## Installation
 
