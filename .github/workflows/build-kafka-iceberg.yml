@@ -1,0 +1,78 @@
+name: Build and Release Kafka Iceberg Connector
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Apache Iceberg version to build (e.g. 1.11.0)'
+        required: true
+        type: string
+
+jobs:
+  build-and-release:
+    name: Build Kafka Iceberg Connector ${{ github.event.inputs.version }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Clone apache/iceberg at tag apache-iceberg-${{ github.event.inputs.version }}
+        uses: actions/checkout@v4
+        with:
+          repository: apache/iceberg
+          ref: apache-iceberg-${{ github.event.inputs.version }}
+          path: iceberg
+
+      - name: Set up Gradle cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches
+            ~/.gradle/wrapper
+          key: gradle-${{ runner.os }}-${{ github.event.inputs.version }}-${{ hashFiles('iceberg/**/*.gradle*', 'iceberg/**/gradle-wrapper.properties') }}
+          restore-keys: |
+            gradle-${{ runner.os }}-${{ github.event.inputs.version }}-
+            gradle-${{ runner.os }}-
+
+      - name: Build Kafka Connect runtime distributions
+        working-directory: iceberg
+        run: |
+          ./gradlew \
+            :iceberg-kafka-connect:iceberg-kafka-connect-runtime:distZip \
+            :iceberg-kafka-connect:iceberg-kafka-connect-runtime:hiveDistZip \
+            -x test \
+            -x integrationTest \
+            --no-daemon \
+            --parallel
+
+      - name: List built artifacts
+        run: |
+          find iceberg/kafka-connect/kafka-connect-runtime/build/distributions/ -name "*.zip" | sort
+
+      - name: Create GitHub Release and upload artifacts
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          VERSION: ${{ github.event.inputs.version }}
+        run: |
+          gh release create "v${VERSION}" \
+            --repo "${{ github.repository }}" \
+            --title "Kafka Iceberg Connector v${VERSION}" \
+            --notes "Kafka Iceberg Connector built from [apache/iceberg](https://github.com/apache/iceberg) tag \`apache-iceberg-${VERSION}\`.
+
+          ## Artifacts
+
+          | File | Description |
+          |------|-------------|
+          | \`iceberg-kafka-connect-runtime-${VERSION}.zip\` | Standard distribution (AWS S3, GCS, Azure) |
+          | \`iceberg-kafka-connect-runtime-${VERSION}-hive.zip\` | Hive Metastore distribution |
+
+          ## Installation
+
+          Extract the ZIP into your Kafka Connect plugin path, then configure the connector." \
+            iceberg/kafka-connect/kafka-connect-runtime/build/distributions/*.zip
