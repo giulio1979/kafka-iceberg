@@ -48,15 +48,28 @@ jobs:
           ./gradlew \
             :iceberg-kafka-connect:iceberg-kafka-connect-runtime:distZip \
             :iceberg-kafka-connect:iceberg-kafka-connect-runtime:hiveDistZip \
-            -Pversion="${VERSION}" \
             -x test \
             -x integrationTest \
             --no-daemon \
             --parallel
 
-      - name: List built artifacts
+      - name: Rename artifacts to use requested version
+        env:
+          VERSION: ${{ github.event.inputs.version }}
+          DIST_DIR: iceberg/kafka-connect/kafka-connect-runtime/build/distributions
         run: |
-          find iceberg/kafka-connect/kafka-connect-runtime/build/distributions/ -name "*.zip" | sort
+          # Find the built ZIPs and rename them to the requested version
+          STANDARD=$(find "${DIST_DIR}" -name 'iceberg-kafka-connect-runtime-[0-9]*.zip' ! -name '*hive*')
+          HIVE=$(find "${DIST_DIR}" -name 'iceberg-kafka-connect-runtime-hive-*.zip')
+
+          echo "Found standard: ${STANDARD}"
+          echo "Found hive:     ${HIVE}"
+
+          mv "${STANDARD}" "${DIST_DIR}/iceberg-kafka-connect-runtime-${VERSION}.zip"
+          mv "${HIVE}"     "${DIST_DIR}/iceberg-kafka-connect-runtime-hive-${VERSION}.zip"
+
+          echo "Renamed artifacts:"
+          ls -lh "${DIST_DIR}/"
 
       - name: Create GitHub Release and upload artifacts
         env:
